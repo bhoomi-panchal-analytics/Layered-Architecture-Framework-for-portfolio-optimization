@@ -3,224 +3,210 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import plotly.express as px
+import plotly.graph_objects as go
+from datetime import date
 
 st.set_page_config(layout="wide")
-
 st.title("Quantitative Portfolio Optimization Platform")
 
 # =====================================================
-# 1️⃣ INVESTOR PROFILE & OBJECTIVE FUNCTION
+# 1️⃣ INVESTOR INPUTS
 # =====================================================
 
-st.header("Investor Profile & Objective")
+st.sidebar.header("Investor Profile")
 
-col1, col2, col3 = st.columns(3)
+capital = st.sidebar.number_input("Capital ($)", 1000, 10000000, 100000)
+risk_free_rate = st.sidebar.number_input("Risk-Free Rate (%)", 0.0, 10.0, 3.0)/100
 
-with col1:
-    name = st.text_input("Investor Name")
-    age = st.number_input("Age", 18, 100, 30)
-    capital = st.number_input("Investment Capital ($)", 1000, 10000000, 100000)
+start_date = st.sidebar.date_input("Start Date", date(2018,1,1))
+end_date = st.sidebar.date_input("End Date", date.today())
 
-with col2:
-    objective = st.selectbox(
-        "Objective Function",
-        [
-            "Maximize Sharpe Ratio",
-            "Minimize Volatility",
-            "Maximize Return",
-            "Risk Parity",
-            "Target Return Optimization",
-            "Black-Litterman",
-            "CVaR Minimization"
-        ]
-    )
+assets_input = st.sidebar.text_input(
+    "Asset Universe (comma separated)",
+    "AAPL,MSFT,JPM,XOM,NVDA"
+)
 
-    expected_return_model = st.selectbox(
-        "Expected Return Model",
-        [
-            "Historical Mean",
-            "CAPM",
-            "Black-Litterman",
-            "ARIMA Forecast"
-        ]
-    )
-
-with col3:
-    covariance_method = st.selectbox(
-        "Covariance Estimation",
-        [
-            "Sample Covariance",
-            "Ledoit-Wolf Shrinkage",
-            "EWMA",
-            "GARCH-based"
-        ]
-    )
-
-    risk_free_rate = st.number_input("Risk-Free Rate (%)", 0.0, 10.0, 3.0) / 100
-
-# Save to session
-st.session_state["capital"] = capital
-st.session_state["objective"] = objective
+assets = [x.strip().upper() for x in assets_input.split(",")]
 
 # =====================================================
-# 2️⃣ CONSTRAINT ENGINE
+# 2️⃣ LOAD DATA SAFELY
 # =====================================================
 
-st.header("Constraints & Risk Preferences")
+@st.cache_data
+def load_market_data(assets, start, end):
+    prices = yf.download(assets, start=start, end=end)["Close"]
+    return prices
 
-col4, col5, col6 = st.columns(3)
+prices = load_market_data(assets, start_date, end_date)
 
-with col4:
-    risk_tolerance = st.slider("Risk Tolerance", 1, 10, 5)
-    min_weight = st.number_input("Minimum Weight per Asset", 0.0, 1.0, 0.0)
-    max_weight = st.number_input("Maximum Weight per Asset", 0.0, 1.0, 0.4)
-
-with col5:
-    leverage_allowed = st.toggle("Allow Leverage?")
-    short_allowed = st.toggle("Allow Short Selling?")
-    transaction_cost = st.number_input("Transaction Cost (%)", 0.0, 5.0, 0.1) / 100
-
-with col6:
-    turnover_penalty = st.slider("Turnover Penalty", 0.0, 1.0, 0.1)
-    liquidity_filter = st.toggle("Apply Liquidity Filter?")
-    sector_constraint = st.toggle("Apply Sector Constraints?")
-
-# =====================================================
-# 3️⃣ MARKET DATA CONTROLS
-# =====================================================
-
-st.header("Market Data Controls")
-
-col7, col8, col9 = st.columns(3)
-
-with col7:
-    start_date = st.date_input("Start Date")
-    end_date = st.date_input("End Date")
-
-with col8:
-    frequency = st.selectbox("Data Frequency", ["Daily", "Weekly", "Monthly"])
-    benchmark_choice = st.selectbox(
-        "Benchmark",
-        ["S&P 500", "NIFTY 50", "Custom"]
-    )
-
-with col9:
-    regime_filter = st.selectbox(
-        "Volatility Regime",
-        ["All", "High VIX", "Low VIX"]
-    )
-    esg_filter = st.toggle("Apply ESG Filter?")
-
-# =====================================================
-# LOAD MARKET DATA
-# =====================================================
-
-assets = ["AAPL", "MSFT", "JPM", "XOM", "NVDA"]
-
-prices = yf.download(
-    assets,
-    start=start_date,
-    end=end_date
-)["Close"]
+if prices.empty or len(prices) < 50:
+    st.error("Insufficient data. Adjust dates or asset list.")
+    st.stop()
 
 returns = prices.pct_change().dropna()
 
+benchmark = yf.download("^GSPC", start=start_date, end=end_date)["Close"]
+benchmark = benchmark.pct_change().dropna()
+
+# Align data safely
+returns, benchmark = returns.align(benchmark, join="inner", axis=0)
+
+if len(returns) < 30:
+    st.error("Not enough overlapping data with benchmark.")
+    st.stop()
+
 # =====================================================
-# 4️⃣ DIAGNOSTIC METRICS BEFORE OPTIMIZATION
+# 3️⃣ BASELINE EQUAL WEIGHT PORTFOLIO
+# =====================================================
+
+weights = np.ones(len(assets)) / len(assets)
+portfolio = returns @ weights
+
+# =====================================================
+# 4️⃣ PRE-OPTIMIZATION DIAGNOSTICS
 # =====================================================
 
 st.header("Pre-Optimization Diagnostics")
 
-annual_return = returns.mean() * 252
-annual_vol = returns.std() * np.sqrt(252)
-sharpe = (annual_return.mean() - risk_free_rate) / annual_vol.mean()
+ann_return = portfolio.mean() * 252
+ann_vol = portfolio.std() * np.sqrt(252)
 
-col10, col11, col12 = st.columns(3)
+if ann_vol == 0:
+    sharpe = 0
+else:
+    sharpe = (ann_return - risk_free_rate) / ann_vol
 
-col10.metric("Mean Annual Return", round(annual_return.mean(), 4))
-col11.metric("Annualized Volatility", round(annual_vol.mean(), 4))
-col12.metric("Sharpe Ratio (Naive)", round(sharpe, 3))
+col1,col2,col3 = st.columns(3)
+col1.metric("Mean Annual Return", f"{ann_return:.2%}")
+col2.metric("Annualized Volatility", f"{ann_vol:.2%}")
+col3.metric("Sharpe Ratio", round(sharpe,3))
 
-# Correlation heatmap
+# =====================================================
+# 5️⃣ CORRELATION MATRIX
+# =====================================================
+
+st.subheader("Correlation Matrix")
 corr = returns.corr()
-fig_corr = px.imshow(corr, title="Correlation Matrix")
+fig_corr = px.imshow(corr, text_auto=True)
 st.plotly_chart(fig_corr, use_container_width=True)
 
-# Drawdown
-portfolio_equal = returns.mean(axis=1)
-cum = (1 + portfolio_equal).cumprod()
+# =====================================================
+# 6️⃣ PORTFOLIO VS BENCHMARK
+# =====================================================
+
+st.header("Portfolio vs Benchmark")
+
+cum_port = (1 + portfolio).cumprod()
+cum_bench = (1 + benchmark).cumprod()
+
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=cum_port.index, y=cum_port, name="Portfolio"))
+fig.add_trace(go.Scatter(x=cum_bench.index, y=cum_bench, name="Benchmark"))
+fig.update_layout(title="Cumulative Return Comparison")
+st.plotly_chart(fig, use_container_width=True)
+
+# =====================================================
+# 7️⃣ ROLLING ANALYTICS
+# =====================================================
+
+st.header("Rolling Risk Diagnostics")
+
+window_months = st.slider("Rolling Window (Months)",3,24,12)
+window_days = window_months * 21
+
+rolling_vol = portfolio.rolling(window_days).std() * np.sqrt(252)
+rolling_sharpe = (
+    portfolio.rolling(window_days).mean() /
+    portfolio.rolling(window_days).std()
+) * np.sqrt(252)
+
+st.line_chart(rolling_vol)
+st.line_chart(rolling_sharpe)
+
+# =====================================================
+# 8️⃣ DRAWDOWN ANALYSIS
+# =====================================================
+
+st.header("Drawdown Analysis")
+
+cum = (1 + portfolio).cumprod()
 drawdown = cum / cum.cummax() - 1
 
 st.line_chart(drawdown)
 
-# VaR & CVaR
-var_95 = np.percentile(portfolio_equal, 5)
-cvar_95 = portfolio_equal[portfolio_equal <= var_95].mean()
-
-col13, col14 = st.columns(2)
-col13.metric("VaR (95%)", round(var_95, 4))
-col14.metric("CVaR (95%)", round(cvar_95, 4))
+max_dd = drawdown.min()
+st.metric("Max Drawdown", f"{max_dd:.2%}")
 
 # =====================================================
-# 5️⃣ ADVANCED QUANT TOGGLES
+# 9️⃣ RISK DISTRIBUTION
 # =====================================================
 
-st.header("Advanced Quant Controls")
+st.header("Return Distribution")
 
-col15, col16, col17 = st.columns(3)
+fig_hist = px.histogram(portfolio, nbins=50)
+st.plotly_chart(fig_hist, use_container_width=True)
 
-with col15:
-    entropy_toggle = st.toggle("Entropy Regularization?")
-    shrinkage_intensity = st.slider("Shrinkage Intensity", 0.0, 1.0, 0.2)
+skewness = portfolio.skew()
+kurt = portfolio.kurt()
 
-with col16:
-    rolling_stability = st.toggle("Rolling Stability Analysis?")
-    bootstrap_toggle = st.toggle("Bootstrap Validation?")
+col4,col5 = st.columns(2)
+col4.metric("Skewness", round(skewness,3))
+col5.metric("Kurtosis", round(kurt,3))
 
-with col17:
-    rebalance_frequency = st.selectbox(
-        "Rebalancing Frequency",
-        ["Monthly", "Quarterly", "Annual"]
-    )
+var_method = st.selectbox("VaR Method",["Historical","Parametric"])
 
-# =====================================================
-# 6️⃣ STRESS TEST PANEL
-# =====================================================
+if var_method=="Historical":
+    var95 = np.percentile(portfolio,5)
+else:
+    var95 = portfolio.mean() - 1.65*portfolio.std()
 
-st.header("Stress Testing")
+cvar95 = portfolio[portfolio <= var95].mean()
 
-col18, col19, col20 = st.columns(3)
-
-with col18:
-    shock_returns = st.slider("Return Shock (%)", -20, 20, 0)
-
-with col19:
-    volatility_spike = st.slider("Volatility Spike (%)", 0, 100, 0)
-
-with col20:
-    crisis_toggle = st.selectbox(
-        "Crisis Simulation",
-        ["None", "2008 Crisis", "2020 COVID"]
-    )
+col6,col7 = st.columns(2)
+col6.metric("VaR 95%", f"{var95:.2%}")
+col7.metric("CVaR 95%", f"{cvar95:.2%}")
 
 # =====================================================
-# RUN OPTIMIZATION BUTTON
+# 10️⃣ ACTIVE MANAGEMENT METRICS
 # =====================================================
 
-st.markdown("---")
-if st.button("Run Optimization"):
+st.header("Active Management Metrics")
 
-    st.success("Optimization Running Based on Selected Parameters")
+tracking_error = (portfolio - benchmark).std() * np.sqrt(252)
 
-    # Placeholder optimization logic
-    weights = np.ones(len(assets)) / len(assets)
+if tracking_error == 0:
+    info_ratio = 0
+else:
+    info_ratio = (ann_return - benchmark.mean()*252) / tracking_error
 
-    optimized_return = np.dot(weights, annual_return)
-    optimized_vol = np.sqrt(np.dot(weights.T, np.dot(returns.cov()*252, weights)))
-    optimized_sharpe = (optimized_return - risk_free_rate) / optimized_vol
+beta = np.cov(portfolio, benchmark)[0,1] / np.var(benchmark)
+alpha = ann_return - beta*(benchmark.mean()*252)
 
-    st.metric("Optimized Return", round(optimized_return, 4))
-    st.metric("Optimized Volatility", round(optimized_vol, 4))
-    st.metric("Optimized Sharpe", round(optimized_sharpe, 3))
+col8,col9,col10 = st.columns(3)
+col8.metric("Information Ratio", round(info_ratio,3))
+col9.metric("Beta", round(beta,3))
+col10.metric("Alpha", f"{alpha:.2%}")
 
-    st.bar_chart(pd.Series(weights, index=assets))
+# =====================================================
+# 11️⃣ REGIME PERFORMANCE (VIX SPLIT)
+# =====================================================
+
+st.header("Regime Performance")
+
+vix = yf.download("^VIX", start=start_date, end=end_date)["Close"]
+vix = vix.pct_change().dropna()
+
+portfolio_reg, vix = portfolio.align(vix, join="inner")
+
+high_vix = portfolio_reg[vix > vix.median()]
+low_vix = portfolio_reg[vix <= vix.median()]
+
+col11,col12 = st.columns(2)
+
+if len(high_vix) > 10:
+    col11.metric("Sharpe (High VIX)",
+        round((high_vix.mean()*252)/(high_vix.std()*np.sqrt(252)),3))
+
+if len(low_vix) > 10:
+    col12.metric("Sharpe (Low VIX)",
+        round((low_vix.mean()*252)/(low_vix.std()*np.sqrt(252)),3))
