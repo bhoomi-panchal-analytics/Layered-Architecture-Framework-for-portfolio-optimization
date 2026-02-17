@@ -1,0 +1,24 @@
+data:
+  start_date: "2015-01-01"
+  window: 252
+  rebalance: 21
+
+risk:
+  shrinkage: true
+  use_dynamic_covariance: true
+
+black_litterman:
+  tau: 0.05
+  delta: 2.5
+
+esg:
+  min_score: 60
+
+transaction_cost:
+  cost_per_turnover: 0.001
+
+bootstrap:
+  n_samples: 500
+  block_size: 21
+
+random_seed: 42
