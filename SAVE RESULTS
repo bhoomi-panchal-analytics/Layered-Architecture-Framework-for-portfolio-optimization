@@ -1,0 +1,4 @@
+pd.Series(condition_results).to_csv("results/diagnostics_condition.csv")
+pd.Series(sharpe_results).to_csv("results/diagnostics_sharpe.csv")
+pd.Series(weight_results).to_csv("results/diagnostics_weights.csv")
+pd.Series(stability_results).to_csv("results/diagnostics_overall.csv")
