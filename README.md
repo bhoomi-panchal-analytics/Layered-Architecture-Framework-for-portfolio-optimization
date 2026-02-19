@@ -16,180 +16,263 @@ The system moves beyond classical mean-variance optimization by combining:
 
 The objective is to construct portfolios that are statistically robust, economically grounded, and ESG-aware under multiple macroeconomic regimes.
 
-Architecture
 
-The framework is organized into seven structured layers:
 
-Data Infrastructure
+# Regime-Aware Tail-Risk Constrained Portfolio System
 
-Historical price data (equities, indices)
+## Overview
 
-Financial statement data for valuation models
+This project implements a hierarchical, governance-first portfolio allocation framework designed to enhance capital preservation under structural market uncertainty.
 
-Macroeconomic indicators (inflation, rates, volatility index)
+The system integrates:
 
-Carbon exposure metrics (CBAM impact proxies, carbon credit pricing)
+• Macro regime detection (Hidden Markov Model)
+• Regime-dependent volatility modeling (GARCH / MS-GARCH approximation)
+• Systemic contagion monitoring (rolling correlation networks)
+• Tail-risk diagnostics (VaR, CVaR, fat-tail analysis)
+• Multi-strategy portfolio optimization (Minimum Variance, Max Sharpe, Risk Parity)
+• Interactive institutional-style dashboard (Streamlit)
 
-ESG-adjusted company-level factors
+The objective is not short-term return prediction.
+The objective is structural survivability across market regimes.
 
-Risk Modeling Engine
+---
 
-GARCH(1,1) baseline volatility
+## Core Architecture
 
-EGARCH / GJR-GARCH for asymmetric volatility
+The system is structured hierarchically:
 
-DCC-GARCH for dynamic correlations
+Layer 1 – Macro Regime Detection
+Identifies probabilistic market states (expansion, transition, crisis).
 
-Expected Shortfall (CVaR) estimation
+Layer 2 – Volatility Modeling
+Estimates regime-dependent conditional variance.
 
-Rolling drawdown and stress regime detection
+Layer 3 – Contagion Monitoring
+Detects correlation convergence and systemic stress.
 
-Expected Return Modeling
+Layer 4 – Tail-Risk Governance
+Applies VaR and CVaR constraints.
 
-Market & Factor-Based Models:
+Layer 5 – Allocation Engine
+Allocates capital within governance boundaries.
 
-CAPM
+Higher layers override lower layers.
+Risk governance dominates optimization.
 
-Fama–French 3/5 Factor Model
+---
 
-Multi-factor regression
+## Data Inputs
 
-Earnings Forecast Model
+The system uses multi-asset and macro datasets, including:
 
-Event Study Model
+• SPY, TLT, GLD, DBC, UUP, SHY
+• VIX index
+• Yield curve spread
+• Credit spreads
+• Financial stress index
+• Synthetic stress datasets (optional)
 
-Fundamental Valuation Models:
+All CSV files are placed inside:
 
-Discounted Cash Flow (DCF)
+```
+/data/
+```
 
-Dividend Discount Model (DDM)
+---
 
-Residual Income Model
+## Folder Structure
 
-Comparable Company Analysis (Trading Comps)
+```
+project/
+│
+├── data/
+│   ├── market_data.csv
+│   ├── regime_probabilities.csv
+│   ├── garch.csv
+│   ├── contagion.csv
+│   └── additional macro datasets
+│
+├── utils/
+│   ├── load_data.py
+│   ├── feature_engineering.py
+│
+├── pages/
+│   ├── 1_Macro_Regime.py
+│   ├── 2_Volatility.py
+│   ├── 3_Contagion.py
+│   ├── 4_Portfolio_Allocation.py
+│   ├── 5_Conclusion.py
+│
+├── app.py
+├── requirements.txt
+└── README.md
+```
 
-Precedent Transactions
+---
 
-Sum-of-the-Parts (SOTP)
+## Libraries Used
 
-Leveraged Buyout (LBO) Model
+Core Libraries:
 
-Accretion/Dilution Model
+• pandas
+• numpy
+• plotly
+• streamlit
+• statsmodels
+• arch
+• hmmlearn
+• networkx
+• scipy
 
-Merger Consequences Model
+Optional (advanced modeling):
 
-Each valuation output is converted into implied expected return and integrated into the return forecasting layer.
+• scikit-learn
+• matplotlib
 
-ESG & Carbon Risk Integration
+All dependencies are listed in:
 
-4
+```
+requirements.txt
+```
 
-The framework explicitly incorporates transition risk through:
+Install using:
 
-Carbon intensity scoring
+```bash
+pip install -r requirements.txt
+```
 
-Exposure to Carbon Border Adjustment Mechanism (CBAM)
+---
 
-Sensitivity to carbon credit price movements
+## How to Run the Model
 
-Emission-adjusted cost of capital
+### 1. Clone the Repository
 
-Expected returns are penalized for transition risk exposure, and covariance matrices are adjusted to reflect ESG-induced volatility amplification.
+```bash
+git clone <repo_url>
+cd project
+```
 
-Portfolio Optimization Engine
+### 2. Install Dependencies
 
-Optimization techniques include:
+```bash
+pip install -r requirements.txt
+```
 
-Classical Mean–Variance Optimization
+### 3. Add Data
 
-Black–Litterman Bayesian Allocation
+Place required CSV files inside the `/data/` folder.
 
-Entropy Pooling for robust distribution adjustment
+Minimum required:
 
-Game-Theoretic Allocation (Nash equilibrium under competing risk preferences)
+• market_data.csv
+• regime_probabilities.csv
+• garch.csv
+• contagion.csv
 
-CVaR Optimization
+### 4. Launch the Dashboard
 
-ESG constraint optimization
+```bash
+streamlit run app.py
+```
 
-Sector caps & turnover constraints
+The system will open in your browser.
 
-Transaction cost-aware rebalancing
+---
 
-Backtesting & Performance Evaluation
+## Dashboard Pages
 
-Rolling window backtests
+Macro Regime Page
+• Regime probability heatmap
+• Crisis timeline overlay
+• Regime confidence metrics
 
-Out-of-sample validation
+Volatility Page
+• MS-GARCH volatility forecast
+• VIX comparison
+• Volatility clustering visualization
 
-Regime-specific performance attribution
+Contagion Page
+• Rolling correlation matrix
+• Network density timeline
+• Systemic stress index
 
-Stress testing (2008 crisis, COVID shock, rate spike scenario)
+Portfolio Allocation Page
+• Asset selection
+• Optimization mode selection
+• VaR / CVaR diagnostics
+• Diversification ratio
+• Fat-tail analysis
+• Drawdown monitoring
 
-Performance Metrics:
+Conclusion Page
+• System summary
+• Architecture explanation
+• Survivability analysis
 
-Sharpe Ratio
+---
 
-Sortino Ratio
+## What This System Does
 
-Calmar Ratio
+• Detects structural market regimes
+• Models volatility clustering
+• Quantifies systemic stress
+• Constrains tail risk
+• Allocates capital under governance hierarchy
+• Provides institutional-style monitoring dashboard
 
-Maximum Drawdown
+---
 
-Information Ratio
+## What This System Does NOT Do
 
-Tail risk diagnostics
+• Guarantee alpha
+• Eliminate drawdowns
+• Time market tops and bottoms
+• Provide financial advice
+• Replace live risk management systems
 
-Interactive Streamlit Application
+It is a research-grade decision-support framework.
 
-The Streamlit interface enables:
+---
 
-Asset selection and constraint tuning
+## Research Applications
 
-Risk tolerance & ESG preference sliders
+This framework can be extended for:
 
-Real-time GARCH volatility forecasts
+• Regime-conditioned factor tilting
+• Robust Bayesian allocation
+• Extreme Value Theory tail modeling
+• Reinforcement learning under CVaR constraints
+• Institutional stress testing
 
-Scenario simulation (carbon tax shock, recession probability)
+---
 
-Efficient frontier visualization
+## Deployment
 
-Strategy comparison dashboard
+The application can be deployed using:
 
-Performance attribution & risk decomposition
+• Streamlit Cloud
+• Docker container
+• AWS EC2
+• Local development server
 
-Key Contributions
+---
 
-• Integrates corporate valuation with quantitative portfolio theory
-• Combines Bayesian updating and entropy-based distribution adjustment
-• Incorporates climate transition risk into asset allocation
-• Applies advanced time-series econometrics (GARCH family models)
-• Emphasizes out-of-sample validation and robustness
+## Design Philosophy
 
-Research Relevance
+The system prioritizes:
 
-This project is designed for quantitative research and institutional asset management applications. It demonstrates:
+Survivability > Optimization Sensitivity
+Governance > Prediction
+Tail Control > Variance Minimization
 
-Multi-disciplinary financial modeling
+Long-term compounding depends on drawdown control, not peak return.
 
-Advanced econometric risk forecasting
+---
 
-Bayesian portfolio construction
+## Disclaimer
 
-ESG risk-adjusted asset allocation
+This project is for research and educational purposes only.
+It does not constitute financial advice.
 
-Professional backtesting methodology
 
-Technology Stack
-
-Python (NumPy, Pandas, SciPy)
-
-statsmodels / arch (GARCH models)
-
-cvxpy (optimization)
-
-scikit-learn (factor modeling)
-
-Streamlit (UI deployment)
-
-Plotly / Matplotlib (visualization)
